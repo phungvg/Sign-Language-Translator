@@ -15,7 +15,8 @@ options = vision.HandLandmarkerOptions(base_options=base_options, num_hands=2)
 detector = vision.HandLandmarker.create_from_options(options)
 
 # Load ML model
-# model = load_model()
+# letter_model = load_model('./classifier/classify_letter_model.p')
+# number_model = load_model('./classifier/classify_number_model.p')
 
 def detect_landmarks(frame):
     try: 
