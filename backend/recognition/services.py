@@ -6,7 +6,7 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-from ml.utils import build_feature_vector, load_model
+from ml.utils import build_feature_vector, load_model, get_handedness
 
 # Create an HandLandmarker object
 # NEW MediaPipe Task API
@@ -50,7 +50,13 @@ def predict_letter(frame):
 
     features = build_feature_vector(coords)
 
-    # prediction = model.predict(features)
+    handedness = get_handedness(result)
+
+    # if handedness.get(0) == "Right":
+    #     prediction = letter_model.predict([features])[0]
+    # else:
+    #     prediction = number_model.predict([features])[0]
+
     # return prediction
     return 'A' # remove this 
 
