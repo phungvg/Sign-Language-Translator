@@ -1,7 +1,7 @@
 """
 utils.py — Utility functions for ASL Fingerspelling
 ----------------------------------------------------
-Combines the original repo's drawing/helper functions
+Combines drawing/helper functions
 with new feature engineering needed for improved accuracy.
 
 Sections:
@@ -65,7 +65,7 @@ def load_model(model_path):
 
 
 # ─────────────────────────────────────────────
-# 3. DRAWING HELPERS  (from original repo, cleaned up)
+# 3. DRAWING HELPERS  
 # ─────────────────────────────────────────────
 
 def calc_landmark_list(image, landmarks):
@@ -168,7 +168,7 @@ def is_finger_on(idx, finger, landmark_label):
 
 
 # ─────────────────────────────────────────────
-# 4. SAVE HELPERS  (from original repo)
+# 4. SAVE HELPERS 
 # ─────────────────────────────────────────────
 
 def save_gif(gif_array, fps=30, output_dir="./assets/result.gif"):
@@ -242,7 +242,7 @@ def normalize_landmarks(landmarks):
     """
     pts = np.array(landmarks, dtype=np.float32).reshape(21, 3)
     pts -= pts[0]                          # translate: wrist to origin
-    scale = np.linalg.norm(pts[9])        # palm size = wrist → middle base
+    scale = np.linalg.norm(pts[9])        # palm size = wrist -> middle base
     if scale < 1e-6:
         return [0.0] * 63                  # degenerate hand pose
     pts /= scale
@@ -299,8 +299,8 @@ def build_feature_vector(landmarks, use_angles=True):
 
     Args:
         landmarks:   raw 63-float list from extract_landmarks()
-        use_angles:  True  → 78 features (63 + 15) — recommended
-                     False → 63 features (if your saved model was trained
+        use_angles:  True  -> 78 features (63 + 15) — recommended
+                     False -> 63 features (if your saved model was trained
                              without angles — keep consistent!)
 
       use_angles must match how the model was trained.
