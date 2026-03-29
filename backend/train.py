@@ -15,11 +15,16 @@ from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDis
 #--------------------------------------------------------------------------------------------------------------------------------------------
 data_dir    = './dataset/archive/asl_alphabet_train/asl_alphabet_train/'
 
-#Temp storage folder for extracted landmarks, only saves the 42 numbers, not the img
-dataset_pickle = "./dataset/archive/letter_dataset_pickle" 
+#Folder for extracted landmarks, only saves the 42 numbers, not the img
+letter_dataset_pickle = "./dataset/archive/letter_dataset_pickle" 
+number_dataset_pickle = "./dataset/archive/number_dataset_pickle" 
+
+#Save the model
 classifier_dir = './classifier'
 
+#Letter and number model
 letter_model   = './classifier/classify_letter_model.p'
+number_model   = './classifier/classify_number_model.p'
 
 samples_per_class = 500
 random_seed = 42
@@ -197,8 +202,8 @@ def process_and_save_dataset():
     # Save to pickle so we can use it to train the model later
     print(f"\nTotal extracted samples: {len(data)}")
     
-    # Check if dataset_pickle is a directory, append a filename if so
-    save_path = dataset_pickle
+    # Check if letter_dataset_pickle is a directory, append a filename if so
+    save_path = letter_dataset_pickle
     if os.path.exists(save_path) and os.path.isdir(save_path):
         save_path = os.path.join(save_path, 'dataset.pickle')
         
@@ -219,7 +224,7 @@ def process_and_save_dataset():
 #--------------------------------------------------------------------------------------------------------------------------------------------
 def train_classifier():
     # Construct correct load path for dataset
-    load_path = dataset_pickle
+    load_path = letter_dataset_pickle
     if os.path.exists(load_path) and os.path.isdir(load_path):
         load_path = os.path.join(load_path, 'dataset.pickle')
         
