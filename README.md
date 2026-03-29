@@ -1,1 +1,1 @@
-CS 415 American Sign Language Translator
+Live Vision American Sign Language Translator
