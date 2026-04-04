@@ -191,11 +191,56 @@ def save_video(frame_array, width, height, fps=30, output_dir="./assets/result.m
 # ─────────────────────────────────────────────
 # 5. FEATURE ENGINEERING  — NEW
 # ─────────────────────────────────────────────
+def extract_landmarks_from_image(img_path, hands):
+    """
+    Run MediaPipe on a saved IMAGE FILE and return 42-float feature vector.
+
+    Different from extract_landmarks() which works on live MediaPipe results.
+    This one takes an image PATH and handles everything internally:
+        read image → run MediaPipe → extract → normalize → return 42 floats
+
+    Used by:
+        train.py      → extract landmarks from training images
+        test_model.py → extract landmarks from test images
+
+    Args:
+        img_path : path to image file (.jpg, .png etc)
+        hands    : initialized MediaPipe Hands object
+
+    Returns:
+        list of 42 floats, or None if no hand detected
+    """
+    img = cv2.imread(img_path)
+    if img is None:
+        return None
+
+    # MediaPipe needs RGB, OpenCV loads BGR
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    results = hands.process(img_rgb)
+
+    if not results.multi_hand_landmarks:
+        return None
+
+    hand = results.multi_hand_landmarks[0]
+    x_coords = [lm.x for lm in hand.landmark]
+    y_coords = [lm.y for lm in hand.landmark]
+
+    x_min = min(x_coords)
+    y_min = min(y_coords)
+    x_norm = [x - x_min for x in x_coords]
+    y_norm = [y - y_min for y in y_coords]
+
+    feature_vector = []
+    for x, y in zip(x_norm, y_norm):
+        feature_vector.append(x)
+        feature_vector.append(y)
+
+    return feature_vector  # 42 floats
 
 def extract_landmarks(results):
     """
-    Pull the 21 (x, y, z) points from MediaPipe's results for the FIRST
-    detected hand → flat list of 63 floats.
+    Pull the 21 (x, y) points from MediaPipe's results for the FIRST
+    detected hand -> flat list of 42 floats.
 
     Returns None if no hand detected — use this in main.py to trigger
     space/pause detection (no hand = user put hand down = word boundary).
@@ -206,8 +251,8 @@ def extract_landmarks(results):
         return None
     coords = []
     for lm in results.multi_hand_landmarks[0].landmark:
-        coords.extend([lm.x, lm.y, lm.z])
-    return coords  # 21 × 3 = 63 values
+        coords.extend([lm.x, lm.y])
+    return coords  # 21 × 2 = 42 values
 
 
 def extract_landmarks_by_index(results, hand_index):
@@ -222,29 +267,28 @@ def extract_landmarks_by_index(results, hand_index):
         return None
     coords = []
     for lm in results.multi_hand_landmarks[hand_index].landmark:
-        coords.extend([lm.x, lm.y, lm.z])
-    return coords
+        coords.extend([lm.x, lm.y]) #x,y only no z
+    return coords #42 values
 
 
 def normalize_landmarks(landmarks):
     """
     Make the feature vector invariant to hand position and size.
 
-    Problem without this:
-      - Same sign on the left vs right of frame = different prediction ✗
-      - Same sign close vs far from camera = different prediction ✗
+        Problem without this:
+            - Same sign on the left vs right of frame = different prediction
+            - Same sign close vs far from camera = different prediction
 
-    Fix:
-      1. Subtract wrist (point 0) so wrist is always at (0, 0, 0)
-      2. Divide by wrist→middle_MCP distance (point 9) to normalize scale
+            1. Subtract wrist (point 0) so wrist is always at (0, 0)
+            2. Divide by wrist->middle_MCP distance (point 9) to normalize scale
 
-    Returns 63 normalized floats.
+    Returns 42 normalized floats.
     """
-    pts = np.array(landmarks, dtype=np.float32).reshape(21, 3)
+    pts = np.array(landmarks, dtype=np.float32).reshape(21, 2) #2d
     pts -= pts[0]                          # translate: wrist to origin
     scale = np.linalg.norm(pts[9])        # palm size = wrist -> middle base
     if scale < 1e-6:
-        return [0.0] * 63                  # degenerate hand pose
+        return [0.0] * 42                 # degenerate hand pose
     pts /= scale
     return pts.flatten().tolist()
 
@@ -252,7 +296,7 @@ def normalize_landmarks(landmarks):
 def compute_finger_angles(landmarks):
     """
     Compute the bend angle at 15 finger joints (3 joints × 5 fingers).
-    Adds 15 extra features on top of the 63 xyz values.
+    Adds 15 optional features on top of the 42 xy values.
 
     WHY THIS MATTERS:
     Signs A, S, and E all look like closed fists — their xyz coords
@@ -267,7 +311,7 @@ def compute_finger_angles(landmarks):
 
     Returns 15 floats in range [0, π] radians.
     """
-    pts = np.array(landmarks, dtype=np.float32).reshape(21, 3)
+    pts = np.array(landmarks, dtype=np.float32).reshape(21, 2)
 
     # (point_a, vertex_b, point_c) — angle measured at b
     triplets = [
@@ -292,24 +336,24 @@ def compute_finger_angles(landmarks):
     return angles  # 15 values
 
 
-def build_feature_vector(landmarks, use_angles=True):
+def build_feature_vector(landmarks, use_angles=False):
     """
     THE main function to call before model.predict().
-    Combines normalized landmarks + joint angles into one flat vector.
+    Build the model input feature vector.
 
     Args:
-        landmarks:   raw 63-float list from extract_landmarks()
-        use_angles:  True  -> 78 features (63 + 15) — recommended
-                     False -> 63 features (if your saved model was trained
-                             without angles — keep consistent!)
+        landmarks:   raw 42-float list from extract_landmarks()
+        use_angles:  False -> 42 features (matches train.py)
+                     True  -> 57 features (42 + 15) for experimental models
 
-      use_angles must match how the model was trained.
-    If you train with True, predict with True. Don't mix.
+    IMPORTANT:
+      train.py saves models trained on 42 xy-only features.
+      Keep use_angles=False for inference with those models.
     """
     normalized = normalize_landmarks(landmarks)
     if not use_angles:
         return normalized
-    return normalized + compute_finger_angles(landmarks)  # 63 + 15 = 78
+    return normalized + compute_finger_angles(landmarks)  # 42 + 15 = 57
 
 
 # ─────────────────────────────────────────────
@@ -321,7 +365,7 @@ def get_handedness(results):
     Read MediaPipe's built-in left/right hand detection.
     Returns dict: { hand_index → "Left" or "Right" }
 
-    Examples:
+    Ex:
         {0: "Right"}             — one right hand visible
         {0: "Left", 1: "Right"} — both hands visible
 
@@ -372,11 +416,11 @@ def get_wrist_x(results, hand_index):
 if __name__ == "__main__":
     print("Running utils.py self-test with dummy data...\n")
     np.random.seed(42)
-    dummy = np.random.rand(63).tolist()
+    dummy = np.random.rand(42).tolist()
 
     norm = normalize_landmarks(dummy)
-    assert len(norm) == 63, "Expected 63 values"
-    print(f"  normalize_landmarks    : OK — 63 values, wrist ≈ {[round(v,4) for v in norm[:3]]}")
+    assert len(norm) == 42, "Expected 42 values"
+    print(f"  normalize_landmarks    : OK — 42 values, wrist ≈ {[round(v,4) for v in norm[:3]]}")
 
     angles = compute_finger_angles(dummy)
     assert len(angles) == 15, "Expected 15 angles"
@@ -384,11 +428,11 @@ if __name__ == "__main__":
     print(f"  compute_finger_angles  : OK — 15 values, range [{min(angles):.2f}, {max(angles):.2f}] rad")
 
     fv = build_feature_vector(dummy, use_angles=True)
-    assert len(fv) == 78, "Expected 78 features"
-    print(f"  build_feature_vector   : OK — {len(fv)} features (63 landmarks + 15 angles)")
+    assert len(fv) == 57, "Expected 57 features"
+    print(f"  build_feature_vector   : OK — {len(fv)} features (42 landmarks + 15 angles)")
 
     fv2 = build_feature_vector(dummy, use_angles=False)
-    assert len(fv2) == 63, "Expected 63 features"
-    print(f"  build_feature_vector   : OK — {len(fv2)} features (landmarks only)")
+    assert len(fv2) == 42, "Expected 42 features"
+    print(f"  build_feature_vector   : OK — {len(fv2)} features (xy landmarks only)")
 
     print("\nAll tests passed,  utils.py is ready to use.")
