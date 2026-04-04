@@ -115,12 +115,12 @@ def extract_landmarks_from_image(img_path, hands):
     x_coords = [lm.x for lm in hand.landmark]  # 21 values
     y_coords = [lm.y for lm in hand.landmark]  # 21 values
 
-    # Normalize: subtract the minimum so the wrist sits at (0, 0)
+    # Normalize around wrist landmark (index 0) so wrist sits at (0, 0)
     # This makes the feature vector position-independent
-    x_min = min(x_coords)
-    y_min = min(y_coords)
-    x_norm = [x - x_min for x in x_coords]
-    y_norm = [y - y_min for y in y_coords]
+    wrist_x = x_coords[0]
+    wrist_y = y_coords[0]
+    x_norm = [x - wrist_x for x in x_coords]
+    y_norm = [y - wrist_y for y in y_coords]
 
     # Interleave x and y into one flat list:
     # [x0, y0, x1, y1, x2, y2, ... x20, y20] = 42 values
