@@ -1,11 +1,9 @@
 import os
 import cv2
 import pickle
-import random
 import numpy as np
 import mediapipe as mp
 import matplotlib.pyplot as plt
-
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay, classification_report
@@ -13,24 +11,38 @@ from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDis
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Data path"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
-data_dir    = './dataset/archive/asl_alphabet_train/asl_alphabet_train/'
+letter_data_dir    = './dataset/archive/asl_alphabet_train/'
+digit_data_dir    = './dataset/archive/asl_number_train/'
 
 #Folder for extracted landmarks, only saves the 42 numbers, not the img
 letter_dataset_pickle = "./dataset/archive/letter_dataset_pickle" 
-number_dataset_pickle = "./dataset/archive/number_dataset_pickle" 
+digit_dataset_pickle = "./dataset/archive/digit_dataset_pickle" 
 
 #Save the model
 classifier_dir = './classifier'
 
 #Letter and number model
 letter_model   = './classifier/classify_letter_model.p'
-number_model   = './classifier/classify_number_model.p'
+digit_model   = './classifier/classify_digit_model.p'
 
 samples_per_class = 500
-random_seed = 42
 
-all_classess = sorted(os.listdir(data_dir))
-print(f'Found {len(all_classess)} class folders: {all_classess}')
+DATA_CONFIGS = [
+    {
+        'name': 'letter',
+        'data_dir': letter_data_dir,
+        'dataset_pickle': letter_dataset_pickle,
+        'model_path': letter_model,
+        'preview_class': 'A',
+    },
+    {
+        'name': 'digit',
+        'data_dir': digit_data_dir,
+        'dataset_pickle': digit_dataset_pickle,
+        'model_path': digit_model,
+        'preview_class': '0',
+    },
+]
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Setup MediaPipe"""
@@ -163,16 +175,47 @@ def visualize_landmarks(img_path, hands, num_points=6):
     else:
         print("No hand detected during visualization.")
 
+
+def resolve_dataset_pickle_path(path):
+    # If no filename is provided, use dataset.pickle inside the directory.
+    if path.endswith('.p') or path.endswith('.pickle'):
+        return path
+    return os.path.join(path, 'dataset.pickle')
+
+
+def find_preview_image(data_dir, preferred_class):
+    class_order = [preferred_class]
+    class_order.extend(
+        [d for d in sorted(os.listdir(data_dir)) if os.path.isdir(os.path.join(data_dir, d)) and d != preferred_class]
+    )
+
+    for class_name in class_order:
+        class_dir = os.path.join(data_dir, class_name)
+        if not os.path.isdir(class_dir):
+            continue
+
+        image_files = sorted(
+            [f for f in os.listdir(class_dir) if os.path.isfile(os.path.join(class_dir, f))]
+        )
+        if image_files:
+            return os.path.join(class_dir, image_files[0])
+
+    return None
+
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Process the whole data for extract landmarks"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
-def process_and_save_dataset():
+def process_and_save_dataset(data_dir, dataset_pickle, dataset_name):
     data = []
     labels = []
 
-    print(f"Starting feature extraction for {len(all_classess)} classes...")
+    all_classes = sorted(
+        [d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))]
+    )
+    print(f"[{dataset_name}] Found {len(all_classes)} class folders: {all_classes}")
+    print(f"[{dataset_name}] Starting feature extraction for {len(all_classes)} classes...")
     
-    for class_name in all_classess:
+    for class_name in all_classes:
         class_dir = os.path.join(data_dir, class_name)
         if not os.path.isdir(class_dir):
             continue
@@ -184,7 +227,7 @@ def process_and_save_dataset():
         if len(image_files) > samples_per_class:
             image_files = image_files[:samples_per_class]
             
-        print(f"Processing class '{class_name}': {len(image_files)} images...")
+        print(f"[{dataset_name}] Processing class '{class_name}': {len(image_files)} images...")
         
         success_count = 0
         for img_name in image_files:
@@ -197,17 +240,14 @@ def process_and_save_dataset():
                 labels.append(class_name)
                 success_count += 1
                 
-        print(f"  -> Extracted features from {success_count}/{len(image_files)} images.")
+        print(f"[{dataset_name}]   -> Extracted features from {success_count}/{len(image_files)} images.")
 
     # Save to pickle so we can use it to train the model later
-    print(f"\nTotal extracted samples: {len(data)}")
-    
-    # Check if letter_dataset_pickle is a directory, append a filename if so
-    save_path = letter_dataset_pickle
-    if os.path.exists(save_path) and os.path.isdir(save_path):
-        save_path = os.path.join(save_path, 'dataset.pickle')
+    print(f"\n[{dataset_name}] Total extracted samples: {len(data)}")
+
+    save_path = resolve_dataset_pickle_path(dataset_pickle)
         
-    print(f"Saving dataset to {save_path}...")
+    print(f"[{dataset_name}] Saving dataset to {save_path}...")
     
     # Ensure directory exists before saving
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -215,24 +255,21 @@ def process_and_save_dataset():
     try:
         with open(save_path, 'wb') as f:
             pickle.dump({'data': data, 'labels': labels}, f)
-        print("Dataset saved successfully!")
+        print(f"[{dataset_name}] Dataset saved successfully!")
     except Exception as e:
-        print(f"Failed to save dataset: {e}")
+        print(f"[{dataset_name}] Failed to save dataset: {e}")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Train the classifier"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
-def train_classifier():
-    # Construct correct load path for dataset
-    load_path = letter_dataset_pickle
-    if os.path.exists(load_path) and os.path.isdir(load_path):
-        load_path = os.path.join(load_path, 'dataset.pickle')
+def train_classifier(dataset_pickle, model_path, dataset_name):
+    load_path = resolve_dataset_pickle_path(dataset_pickle)
         
-    print(f"Loading dataset from {load_path}...")
+    print(f"\n[{dataset_name}] Loading dataset from {load_path}...")
     try:
         data_dict = pickle.load(open(load_path, 'rb'))
     except FileNotFoundError:
-        print(f"Error: {load_path} not found. Please run feature extraction first.")
+        print(f"[{dataset_name}] Error: {load_path} not found. Please run feature extraction first.")
         return
         
     data = data_dict['data']
@@ -250,14 +287,14 @@ def train_classifier():
         else:
             bad_count += 1
      
-    print(f"Clean samples  : {len(clean_data)}")
-    print(f"Bad samples    : {bad_count} (removed)")
+    print(f"[{dataset_name}] Clean samples  : {len(clean_data)}")
+    print(f"[{dataset_name}] Bad samples    : {bad_count} (removed)")
      
     X = np.array(clean_data)
     y = np.array(clean_labels)
      
     # Show class distribution
-    print(f"\nSamples per class:")
+    print(f"\n[{dataset_name}] Samples per class:")
     unique, counts = np.unique(y, return_counts=True)
     for cls, cnt in zip(unique, counts):
         print(f"  {cls:20s}: {cnt}")
@@ -271,30 +308,30 @@ def train_classifier():
         random_state=42
     )
      
-    print(f"\nTraining samples : {len(X_train)}")
-    print(f"Testing samples  : {len(X_test)}")
+    print(f"\n[{dataset_name}] Training samples : {len(X_train)}")
+    print(f"[{dataset_name}] Testing samples  : {len(X_test)}")
      
     # Train
-    print("\nTraining Random Forest...")
+    print(f"\n[{dataset_name}] Training Random Forest...")
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     clf.fit(X_train, y_train)
      
     # Evaluate
     y_pred   = clf.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
-    print(f"\nAccuracy: {accuracy:.2%}")
+    print(f"\n[{dataset_name}] Accuracy: {accuracy:.2%}")
      
-    print("\nClassification Report:")
+    print(f"\n[{dataset_name}] Classification Report:")
     print(classification_report(y_test, y_pred))
      
     # Ensure classifier directory exists
-    os.makedirs(os.path.dirname(letter_model), exist_ok=True)
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
     
     # Save model
-    with open(letter_model, 'wb') as f:
+    with open(model_path, 'wb') as f:
         pickle.dump({'model': clf}, f)
      
-    print(f"Model saved to {letter_model}")
+    print(f"[{dataset_name}] Model saved to {model_path}")
     """Confusion matrix """
     # Generate and display confusion matrix
     label_classes = sorted(list(set(y_test)))
@@ -303,26 +340,42 @@ def train_classifier():
     fig, ax = plt.subplots(figsize=(10, 12))
     disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=label_classes)
     disp.plot(cmap=plt.cm.Blues, values_format='g', ax=ax)
-    plt.title('Letter Model — Confusion Matrix')
+    plt.title(f'{dataset_name.title()} Model - Confusion Matrix')
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig('./classifier/confusion_matrix.png', dpi=150, bbox_inches='tight')
+    cm_path = f'./classifier/confusion_matrix_{dataset_name}.png'
+    plt.savefig(cm_path, dpi=150, bbox_inches='tight')
     plt.show()
      
-    print("\nConfusion matrix saved to ./classifier/confusion_matrix.png")
-    print(f"\nAll done! Model ready at: {letter_model}")
+    print(f"\n[{dataset_name}] Confusion matrix saved to {cm_path}")
+    print(f"\n[{dataset_name}] All done! Model ready at: {model_path}")
     print("Next step: run main.py")
 
 # --------------------------------------------------------------------------------------------------------------------------------------------
 """Main"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
 if __name__ == "__main__":
-    # Test on 1 img
-    # test_img = os.path.join(data_dir, "A/A531.jpg")
-    # visualize_landmarks(test_img, hands, num_points=6)
-    
-    # Run the whole dataset to extract landmarks
-    # process_and_save_dataset()
-    
-    # Train the Random Forest classifier
-    # train_classifier()
+    for cfg in DATA_CONFIGS:
+        print(f"\n{'=' * 72}")
+        print(f"Running pipeline for: {cfg['name']}")
+        print(f"{'=' * 72}")
+
+        # Test on 1 image before full extraction for quick visual sanity check.
+        preview_img = find_preview_image(cfg['data_dir'], cfg['preview_class'])
+        if preview_img:
+            print(f"[{cfg['name']}] Previewing landmarks on: {preview_img}")
+            visualize_landmarks(preview_img, hands, num_points=6)
+        else:
+            print(f"[{cfg['name']}] No preview image found, skipping landmark visualization.")
+
+        process_and_save_dataset(
+            data_dir=cfg['data_dir'],
+            dataset_pickle=cfg['dataset_pickle'],
+            dataset_name=cfg['name'],
+        )
+
+        train_classifier(
+            dataset_pickle=cfg['dataset_pickle'],
+            model_path=cfg['model_path'],
+            dataset_name=cfg['name'],
+        )
