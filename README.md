@@ -21,7 +21,7 @@ pip install -r requirements.txt
 - OpenCV — camera capture and frame drawing
 - scikit-learn — Random Forest classifier
 
-##Structure
+## Structure
 ```
 backend/
 ├── classifier/
