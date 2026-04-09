@@ -3,19 +3,19 @@
 
 ## Set up
 ### Frontend
-cd frontend
-npm install
-npm run dev
-Frontend runs at: http://localhost:5173/
+        cd frontend 
+        npm install 
+        npm run dev
+        Frontend runs at: http://localhost:5173/
 
 ### Create virtual environment
-cd backend
-python3.10/11 -m venv .venv
-source .venv/bin/activate
+        cd backend
+        python3.10/11 -m venv .venv
+        source .venv/bin/activate
 
 ### Backend
-cd backend
-uvicorn app:app --reload
+        cd backend
+        uvicorn app:app --reload
 
 ### Install dependencies
 
