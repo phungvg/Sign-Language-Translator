@@ -32,7 +32,6 @@ DIGIT_MODEL    = './classifier/classify_digit_model.p'
 random_seed = 42
 
 # Pipeline config — controls which datasets get processed
-
 DATA_CONFIGS = [
     {
         'name': 'letter',
