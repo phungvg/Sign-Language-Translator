@@ -12,7 +12,7 @@ conda activate asl
 pip install -r requirements.txt
 
 ## Training PipeLine
-![Hand Landmarks](https://github.com/user-attachments/assets/b6c4abce-04c5-482c-8c49-382df1f4c6bc)
+![Hand-gesture](https://github.com/user-attachments/assets/7a32790b-ce16-4359-b3bb-9ca2e621397d)
 
 ## Tech Stack
 
