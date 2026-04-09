@@ -6,7 +6,9 @@ Letter: classify_letter_model.p -> Left hand
 For current testing: use dummy result, no webcam neededm simulate a right hand detection
 """
 import os
-
+import mediapipe as mp
+import cv2
+import threading
 import numpy
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Load from utils.py"""
@@ -151,9 +153,7 @@ class HandRouter:
             "confidence": confidence
         }
     
-import mediapipe as mp
-import cv2
-import threading
+
 
 lock = threading.Lock()
 
