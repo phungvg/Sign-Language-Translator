@@ -27,7 +27,7 @@ export default function WebcamStream() {
 
   // draw landmarks
   useEffect(() => {
-    if (!canvasRef.current || !landmarks || landmarks.length < 21) return;
+    if (!canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -37,6 +37,8 @@ export default function WebcamStream() {
     const height = canvas.height = canvas.offsetHeight;
 
     ctx.clearRect(0, 0, width, height);
+
+    if (!landmarks || landmarks.length < 21) return;
 
     // draw points
     landmarks.forEach(([x, y]) => {
@@ -114,7 +116,14 @@ export default function WebcamStream() {
 
     const pred = result.prediction;
 
-    if (!pred) return;
+    if (!pred) {
+      setLandmarks(null);
+      setText("");
+      setConfidence("");
+      setHand("");
+      setType("");
+      return;
+    }
 
     const label = pred.label;
     const conf = pred.confidence;
