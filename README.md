@@ -1,5 +1,5 @@
 # Live Vision American Sign Language Translator
-<img width="2382" height="1760" alt="Gemini_Generated_Image_eilj2meilj2meilj" src="https://github.com/user-attachments/assets/551bc2b8-f75a-4776-b401-01ce59683074" />
+<img width="2382" height="1760" alt="Gemini_Generated_Image_eilj2meilj2meilj" src="https://github.com/user-attachments/assets/0fefe1bc-f4cb-4fda-bd95-991819430392"/>
 
 ## Set up
 ### Create and activate environment
@@ -12,7 +12,9 @@ conda activate asl
 pip install -r requirements.txt
 
 ## Training PipeLine
-![Hand-gesture](https://github.com/user-attachments/assets/7a32790b-ce16-4359-b3bb-9ca2e621397d)
+<img width="1073" height="372" alt="hand_landmarks" src="https://github.com/user-attachments/assets/5e3e199a-7952-471e-8215-3049fcd88415" />
+
+
 
 ## Tech Stack
 
