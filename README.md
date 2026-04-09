@@ -1,5 +1,5 @@
 # Live Vision American Sign Language Translator
-<img width="2382" height="1760" alt="Gemini_Generated_Image_eilj2meilj2meilj" src="https://github.com/user-attachments/assets/551bc2b8-f75a-4776-b401-01ce59683074" />
+<img width="2382" height="1760" alt="Gemini_Generated_Image_eilj2meilj2meilj" src="https://github.com/user-attachments/assets/0fefe1bc-f4cb-4fda-bd95-991819430392"/>
 
 ## Set up
 ### Create and activate environment
@@ -12,7 +12,9 @@ conda activate asl
 pip install -r requirements.txt
 
 ## Training PipeLine
-![Hand Landmarks](https://github.com/user-attachments/assets/b6c4abce-04c5-482c-8c49-382df1f4c6bc)
+<img width="1073" height="372" alt="hand_landmarks" src="https://github.com/user-attachments/assets/5e3e199a-7952-471e-8215-3049fcd88415" />
+
+
 
 ## Tech Stack
 
@@ -21,7 +23,7 @@ pip install -r requirements.txt
 - OpenCV — camera capture and frame drawing
 - scikit-learn — Random Forest classifier
 
-##Structure
+## Structure
 ```
 backend/
 ├── classifier/
