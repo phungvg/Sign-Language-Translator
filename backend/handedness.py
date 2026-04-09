@@ -6,6 +6,10 @@ Letter: classify_letter_model.p -> Left hand
 For current testing: use dummy result, no webcam neededm simulate a right hand detection
 """
 import os
+import mediapipe as mp
+import cv2
+import threading
+import numpy
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Load from utils.py"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -21,8 +25,8 @@ from utils import (
 """Load 2 models"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
 def load_models():
-    letter_model = load_model('./classifier/classify_letter_model.p')
-    digit_model  =load_model('./classifier/classify_digit_model.p')
+    letter_model = load_model('classifier/classify_letter_model.p')
+    digit_model  =load_model('classifier/classify_digit_model.p')
     return letter_model, digit_model
 
 
@@ -142,12 +146,43 @@ class HandRouter:
         confidence = float(proba.max())
 
         return {
+            "landmarks" : landmarks,
             "label"     : label,
             "type"      : hand_type,
             "hand"      : hand_label,
             "confidence": confidence
         }
     
+
+
+lock = threading.Lock()
+
+# Create global instances of models, router, and MediaPipe Hands
+# Using lock to ensure thread safety while processing several frames at once
+letter_model, digit_model = load_models()
+router = HandRouter(letter_model, digit_model)
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(
+    static_image_mode=False,      # Live video, not static images
+    max_num_hands=1,              # one hand per image
+    min_detection_confidence=0.5
+)
+
+def handle_frame(frame):
+    with lock:
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(rgb)
+
+        if results is None:
+            return {}
+
+        predictions = router.predict(results)
+
+        if not predictions:
+            return {}
+
+        return predictions[0]
+
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """MAIN"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
