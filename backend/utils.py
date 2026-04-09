@@ -196,8 +196,8 @@ def extract_landmarks_from_image(img_path, hands):
     Run MediaPipe on a saved IMAGE FILE and return 42-float feature vector.
 
     Different from extract_landmarks() which works on live MediaPipe results.
-    This one takes an image PATH and handles everything internally:
-        read image → run MediaPipe → extract → normalize → return 42 floats
+    This one takes an image PATH and handles extraction only:
+        read image → run MediaPipe → extract raw [x0,y0,...,x20,y20]
 
     Used by:
         train.py      → extract landmarks from training images
@@ -222,20 +222,11 @@ def extract_landmarks_from_image(img_path, hands):
         return None
 
     hand = results.multi_hand_landmarks[0]
-    x_coords = [lm.x for lm in hand.landmark]
-    y_coords = [lm.y for lm in hand.landmark]
+    coords = []
+    for lm in hand.landmark:
+        coords.extend([lm.x, lm.y])
 
-    x_min = min(x_coords)
-    y_min = min(y_coords)
-    x_norm = [x - x_min for x in x_coords]
-    y_norm = [y - y_min for y in y_coords]
-
-    feature_vector = []
-    for x, y in zip(x_norm, y_norm):
-        feature_vector.append(x)
-        feature_vector.append(y)
-
-    return feature_vector  # 42 floats
+    return coords  # 42 raw floats
 
 def extract_landmarks(results):
     """

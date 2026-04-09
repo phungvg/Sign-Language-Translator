@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, confusion_matrix, ConfusionMatrixDisplay, classification_report
+from utils import normalize_landmarks
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Data path"""
@@ -39,7 +40,8 @@ DATA_CONFIGS = [
         'dataset_pickle': LETTER_DATASET_PICKLE,
         'model_path': LETTER_MODEL,
         'preview_class': 'A', #class used for quick check
-        'samples_per_class' : 3000
+        'samples_per_class' : 3000 #Full=3000
+        # 'classes':['A','B','C']
     },
     {
         'name': 'digit',
@@ -47,7 +49,8 @@ DATA_CONFIGS = [
         'dataset_pickle': DIGIT_DATASET_PICKLE,
         'model_path': DIGIT_MODEL,
         'preview_class': '0',  #class used for quick check
-        'samples_per_class' : 500 
+        'samples_per_class' : 500 #Full= 500 
+        # 'classes': ['1','2','3']
     },
 ]
 
@@ -83,13 +86,12 @@ We save x and y only (drop z) -> 21 x 2 = 42 values per image.
 """
 Go thr every img, run MediaPipe and saves 42 (2*x,y =42) landmark values (x,y). No z coordinate 
 
-Normalization:
-        Subtract the minimum x and y so the hand position in the frame
-        does not affect the feature vector. Same sign anywhere = same numbers.
- 
-    Args:
-        img_path      : path to image file
-        hands_detector: initialized MediaPipe Hands object
+Normalization is intentionally matched to runtime inference by calling
+utils.normalize_landmarks() on the extracted 42 raw values.
+
+Args:
+    img_path      : path to image file
+    hands_detector: initialized MediaPipe Hands object
 """
 
 def extract_landmarks_from_image(img_path, hands):
@@ -111,25 +113,29 @@ def extract_landmarks_from_image(img_path, hands):
     # Get the first (only) hand
     hand = results.multi_hand_landmarks[0]
 
-    # Extract raw x and y coordinates (values between 0.0 and 1.0)
-    x_coords = [lm.x for lm in hand.landmark]  # 21 values
-    y_coords = [lm.y for lm in hand.landmark]  # 21 values
+    # Extract raw x and y coordinates and flatten to 42 values:
+    # [x0, y0, x1, y1, ... x20, y20]
+    raw_landmarks = []
+    for lm in hand.landmark:
+        raw_landmarks.append(lm.x)
+        raw_landmarks.append(lm.y)
 
-    # Normalize around wrist landmark (index 0) so wrist sits at (0, 0)
-    # This makes the feature vector position-independent
-    wrist_x = x_coords[0]
-    wrist_y = y_coords[0]
-    x_norm = [x - wrist_x for x in x_coords]
-    y_norm = [y - wrist_y for y in y_coords]
+    # Use the same normalization used in runtime inference (handedness.py).
+    return normalize_landmarks(raw_landmarks)
 
-    # Interleave x and y into one flat list:
-    # [x0, y0, x1, y1, x2, y2, ... x20, y20] = 42 values
-    feature_vector = []
-    for x, y in zip(x_norm, y_norm):
-        feature_vector.append(x)
-        feature_vector.append(y)
 
-    return feature_vector  # 42 floats
+def flip_landmarks_x(landmarks):
+    """
+    Mirror a normalized 42-float landmark vector horizontally.
+    After normalize_landmarks(), wrist is at origin so flipping x = negating x.
+    Layout: [x0, y0, x1, y1, ..., x20, y20] — x values are at even indices.
+    Used as data augmentation to handle both hand orientations.
+    """
+    flipped = landmarks[:]
+    for i in range(0, 42, 2):
+        flipped[i] = -flipped[i]
+    return flipped
+
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Visualize landmark"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -287,6 +293,10 @@ def process_and_save_dataset(data_dir, dataset_pickle, dataset_name, samples_per
             # If a hand was successfully detected and features extracted
             if features is not None:
                 data.append(features)
+                labels.append(class_name)
+                # Flip augmentation: add mirror image of every landmark vector.
+                # Handles orientation mismatch between training images and live webcam.
+                data.append(flip_landmarks_x(features))
                 labels.append(class_name)
                 success_count += 1
                 
