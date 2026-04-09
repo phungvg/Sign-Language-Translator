@@ -2,10 +2,20 @@
 <img width="2382" height="1760" alt="Gemini_Generated_Image_eilj2meilj2meilj" src="https://github.com/user-attachments/assets/0fefe1bc-f4cb-4fda-bd95-991819430392"/>
 
 ## Set up
-### Create and activate environment
-conda create -n asl python=3.10
+### Frontend
+cd frontend
+npm install
+npm run dev
+Frontend runs at: http://localhost:5173/
 
-conda activate asl
+### Create virtual environment
+cd backend
+python3.10/11 -m venv .venv
+source .venv/bin/activate
+
+### Backend
+cd backend
+uvicorn app:app --reload
 
 ### Install dependencies
 
@@ -56,6 +66,8 @@ backend/
 - [x] Classify USA Numbers (0–9)
 - [x] Auto-route Left hand → numbers, Right hand → letters
 - [x] Handle both 2 hands simultaneously
-- [ ] Switch between alphabet and number automatically
+- [x] Switch between alphabet and number automatically
 - [x] Handle del and space gestures
-- [ ] Handle lightening 
+- [ ] Handle lightening
+- [ ] Double letter
+- [ ] Auto check & convert to legit words
