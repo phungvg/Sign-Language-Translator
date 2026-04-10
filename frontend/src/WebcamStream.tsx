@@ -12,11 +12,9 @@ export default function WebcamStream() {
   const [confidence, setConfidence] = useState<string>("");
   const [hand, setHand] = useState<string>("");
   const [type, setType] = useState<string>("");
+  const lastLetter = useRef<string>("");
 
-  const lastLabelRef = useRef<string>("");
-  const lastTimeRef = useRef<number>(0);
-
-  // capture every 500ms
+  // capture every 300ms
   useEffect(() => {
     const interval = setInterval(() => {
       captureAndSend();
@@ -144,6 +142,13 @@ export default function WebcamStream() {
     }
 
     // TODO: Build sentence
+    if (label === "space") {
+      setSentence(sentence => sentence + " ");
+    } else if (label === "del") {
+      setSentence(sentence => sentence.slice(0, -1));
+    } else {
+      setSentence(sentence => sentence + label);
+    }
 
   };
 
@@ -172,9 +177,9 @@ export default function WebcamStream() {
       </div>
 
       {/* sentence */}
-      <div className="text-xl font-mono border p-4 w-200 text-center">
+      <div className="text-xl font-mono border p-4 w-200 text-center wrap-break-word overflow-y-auto whitespace-pre-wrap">
         {/* TODO: Display the sentence */}
-        {"..."} 
+        {sentence || "No signs detected yet."}
       </div>
 
       <div className="text-sm text-gray-600">
