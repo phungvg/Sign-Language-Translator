@@ -238,11 +238,10 @@ def handle_frame(frame):
                 "suggestions": suggest_completions(word)
             }
         elif clean_label == "del":
-            debounce.reset()
             word = word[:-1] if word else ""
             if not word and word_list: # move back to previous word if current word is empty
                 word = word_list.pop() 
-            debounce.push(word[-1])  # update debounce with new last character
+            debounce.push(word[-1]) if word else debounce.reset()  # update debounce with new last character or reset
             word.strip()  # remove trailing space if any
         else:
             word += clean_label
