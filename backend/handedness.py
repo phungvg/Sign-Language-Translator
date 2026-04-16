@@ -10,6 +10,8 @@ import mediapipe as mp
 import cv2
 import threading
 import numpy
+from postprocess import DebounceBuffer, suggest_completions 
+
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Load from utils.py"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -168,6 +170,8 @@ hands = mp_hands.Hands(
     min_detection_confidence=0.5
 )
 
+debounce=DebounceBuffer() #From postprocess
+
 def handle_frame(frame):
     with lock:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -179,9 +183,24 @@ def handle_frame(frame):
         predictions = router.predict(results)
 
         if not predictions:
+            #Test proprocess
+            # No hand detected → reset debounce (brief rest)
+            debounce.reset()
             return {}
+        
+        pred = predictions[0]
+        label = pred["label"]
 
-        return predictions[0]
+        # Run through debounce
+        clean_label = debounce.push(label)
+
+        if clean_label is None:
+            return {}  # suppressed duplicate
+
+        pred["label"] = clean_label
+        
+        # return predictions[0]
+        return pred
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """MAIN"""
