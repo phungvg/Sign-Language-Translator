@@ -25,21 +25,22 @@ def predict(image: str = Form(...)):
         nparr = np.frombuffer(image_bytes, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
+        
         result = handle_frame(frame)
+        return result
 
-        if not result:
-            return {"prediction": None}
-
-        return {
-            "prediction": {
-                "landmarks": result["landmarks"],
-                "label": str(result["label"]),
-                "type": result["type"],
-                "hand": result["hand"],
-                "confidence": float(result["confidence"]),
-            }
-        }
-
+    except Exception as e:
+        print(e)
+        return {"error": str(e)}
+    
+@app.post("/auto-complete")
+def auto_complete(word_selected: str = Form(...)):
+    try:
+        global word
+        global word_list
+        word = word_selected
+        word_list.append(word) if word else None
+        return {"status": "ok"}
     except Exception as e:
         print(e)
         return {"error": str(e)}

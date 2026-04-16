@@ -10,6 +10,8 @@ import mediapipe as mp
 import cv2
 import threading
 import numpy
+from postprocess import DebounceBuffer, suggest_completions 
+
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Load from utils.py"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -168,20 +170,92 @@ hands = mp_hands.Hands(
     min_detection_confidence=0.5
 )
 
+debounce=DebounceBuffer() #From postprocess
+word_list = []  # list of words so far
+word = ""  # current word being built from letter predictions
+
 def handle_frame(frame):
+    global word, word_list
     with lock:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(rgb)
 
-        if results is None:
-            return {}
-
+        if results.multi_hand_landmarks is None:
+            return None
+        
         predictions = router.predict(results)
 
         if not predictions:
-            return {}
+            # Test proprocess
+            # No hand detected -> reset debounce (brief rest)
+            debounce.reset()
+            return None
+        
+        pred = predictions[0]
+        label = pred["label"]
+        confidence = pred["confidence"]
 
-        return predictions[0]
+        # Low confidence -> don't update word, but still return prediction for UI feedback
+        if confidence < 0.65:
+            
+            return {
+                "landmarks": pred["landmarks"],
+                "label": label,
+                "type": pred["type"],
+                "hand": pred["hand"],
+                "confidence": confidence,
+                "text": "".join(word_list + ([word] if word else [])),
+                "suggestions": suggest_completions(word)
+            }
+
+        # Run through debounce
+        clean_label = debounce.push(label)
+
+        # Ignore duplicate, just send prediction for UI feedback without updating word
+        if clean_label is None:
+            return {
+                "landmarks": pred["landmarks"],
+                "label": label,
+                "type": pred["type"],
+                "hand": pred["hand"],
+                "confidence": confidence,
+                "text": "".join(word_list + ([word] if word else [])),
+                "suggestions": suggest_completions(word)
+            }
+
+        pred["label"] = clean_label
+        if clean_label == "space":
+            word_list.append(word)
+            word_list.append(" ")  # add space after word
+            word = ""
+            return {
+                "landmarks": pred["landmarks"],
+                "label": str(pred["label"]),
+                "type": pred["type"],
+                "hand": pred["hand"],
+                "confidence": float(pred["confidence"]),
+                "text": "".join(word_list),
+                "suggestions": suggest_completions(word)
+            }
+        elif clean_label == "del":
+            debounce.reset()
+            word = word[:-1] if word else ""
+            if not word and word_list: # move back to previous word if current word is empty
+                word = word_list.pop() 
+            debounce.push(word[-1])  # update debounce with new last character
+            word.strip()  # remove trailing space if any
+        else:
+            word += clean_label
+
+        return {
+            "landmarks": pred["landmarks"],
+            "label": str(pred["label"]),
+            "type": pred["type"],
+            "hand": pred["hand"],
+            "confidence": float(pred["confidence"]),
+            "text": "".join(word_list + ([word] if word else [])),
+            "suggestions": suggest_completions(word)
+        }
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """MAIN"""

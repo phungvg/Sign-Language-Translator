@@ -503,3 +503,5 @@ if __name__ == "__main__":
     # Clean up MediaPipe
     hands.close()
     print(f"All pipelines complete. MediaPipe closed.")
+
+

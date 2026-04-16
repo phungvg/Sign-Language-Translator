@@ -5,14 +5,14 @@ export default function WebcamStream() {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const [label, setLabel] = useState("");
   const [text, setText] = useState("");
-  const [sentence, setSentence] = useState("");
   const [landmarks, setLandmarks] = useState<number[][] | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const [confidence, setConfidence] = useState<string>("");
   const [hand, setHand] = useState<string>("");
   const [type, setType] = useState<string>("");
-  const lastLetter = useRef<string>("");
 
   // capture every 300ms
   useEffect(() => {
@@ -112,42 +112,30 @@ export default function WebcamStream() {
 
     const result = await res.json();
 
-    const pred = result.prediction;
-
-    if (!pred) {
+    if (!result) {
       setLandmarks(null);
-      setText("");
-      setConfidence("");
+      setLabel("");
       setHand("");
       setType("");
+      setConfidence("");
       return;
     }
 
-    const label = pred.label;
-    const conf = pred.confidence;
-
-    setText(label);
-    setConfidence(conf);
-    setHand(pred.hand);
-    setType(pred.type);
+    setLabel(result.label);
+    setConfidence(result.confidence);
+    setText(result.text);
+    setSuggestions(result.suggestions ?? []);
+    setHand(result.hand);
+    setType(result.type);
 
     // convert flat [x,y,...] → [[x,y],...]
-    if (pred.landmarks) {
-      console.log("LANDMARKS FROM API:", pred.landmarks);
+    if (result.landmarks) {
+      console.log("LANDMARKS FROM API:", result.landmarks);
       const pairs = [];
-      for (let i = 0; i < pred.landmarks.length; i += 2) {
-        pairs.push([pred.landmarks[i], pred.landmarks[i + 1]]);
+      for (let i = 0; i < result.landmarks.length; i += 2) {
+        pairs.push([result.landmarks[i], result.landmarks[i + 1]]);
       }
       setLandmarks(pairs);
-    }
-
-    // TODO: Build sentence
-    if (label === "space") {
-      setSentence(sentence => sentence + " ");
-    } else if (label === "del") {
-      setSentence(sentence => sentence.slice(0, -1));
-    } else {
-      setSentence(sentence => sentence + label);
     }
 
   };
@@ -173,18 +161,53 @@ export default function WebcamStream() {
 
       {/* current letter prediction */}
       <div className="text-xl font-mono border p-4 text-center">
-        {text || "Detecting..."}
+        {label || "Detecting..."}
       </div>
 
       {/* sentence */}
       <div className="text-xl font-mono border p-4 w-200 text-center wrap-break-word overflow-y-auto whitespace-pre-wrap">
         {/* TODO: Display the sentence */}
-        {sentence || "No signs detected yet."}
+        {text || "No signs detected yet."}
       </div>
 
       <div className="text-sm text-gray-600">
         Confidence: {confidence} | Hand: {hand} | Type: {type}
       </div>
+
+      {suggestions.length > 0 && (
+        <div className="flex gap-2 mt-3 flex-wrap">
+          {suggestions.map((word) => (
+            <button
+              key={word}
+              onClick={async () => {
+                // update UI immediately
+                setLabel("");
+                setText(prev => prev + word);
+                setSuggestions([]);
+
+                // notify backend
+                await fetch("http://127.0.0.1:8000/select_word", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                  },
+                  body: new URLSearchParams({
+                    word_selected: word,
+                  }),
+                });
+              }}
+              className="px-3 py-1 border hover:bg-gray-200 transition"
+            >
+              {word}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="text-sm text-gray-600">
+        (Click suggestion to auto-complete)
+      </div>
+      
     </div>
+    
   );
 }
