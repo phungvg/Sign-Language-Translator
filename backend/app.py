@@ -6,6 +6,10 @@ import numpy as np
 import cv2
 
 from handedness import handle_frame
+from postprocess import suggest_completions
+from spellchecker import SpellChecker
+
+spell = SpellChecker()
 
 app = FastAPI()
 
@@ -32,14 +36,34 @@ def predict(image: str = Form(...)):
 
         return {
             "prediction": {
-                "landmarks": result["landmarks"],
+                "landmarks": result.get("landmarks"),
                 "label": str(result["label"]),
-                "type": result["type"],
-                "hand": result["hand"],
-                "confidence": float(result["confidence"]),
+                "type": result.get("type"),
+                "hand": result.get("hand"),
+                "confidence": float(result["confidence"]) if result.get("confidence") is not None else 1.0,
             }
         }
 
     except Exception as e:
         print(e)
         return {"error": str(e)}
+
+
+@app.post("/correct")
+def correct(word: str = Form(...)):
+    """Spell-correct a completed word and return top suggestions."""
+    w = word.lower().strip()
+    if not w:
+        return {"corrected": "", "suggestions": []}
+
+    corrected = spell.correction(w) or w
+    suggestions = suggest_completions(w, n=5)
+
+    return {"corrected": corrected, "suggestions": suggestions}
+
+
+@app.post("/suggest")
+def suggest(prefix: str = Form(...)):
+    """Return live word completions for a partial word."""
+    results = suggest_completions(prefix.lower().strip(), n=5)
+    return {"suggestions": results}

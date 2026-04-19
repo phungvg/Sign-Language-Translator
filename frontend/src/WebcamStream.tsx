@@ -7,12 +7,14 @@ export default function WebcamStream() {
 
   const [text, setText] = useState("");
   const [sentence, setSentence] = useState("");
+  const [currentWord, setCurrentWord] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [landmarks, setLandmarks] = useState<number[][] | null>(null);
 
   const [confidence, setConfidence] = useState<string>("");
   const [hand, setHand] = useState<string>("");
   const [type, setType] = useState<string>("");
-  const lastLetter = useRef<string>("");
+  const currentWordRef = useRef<string>("");
 
   // capture every 300ms
   useEffect(() => {
@@ -99,19 +101,32 @@ export default function WebcamStream() {
     };
   }
 
+  const correctAndFlush = async () => {
+    const word = currentWordRef.current;
+    if (!word) return;
+
+    const res = await fetch("http://127.0.0.1:8000/correct", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ word }),
+    });
+    const data = await res.json();
+    const corrected: string = data.corrected || word;
+
+    setSentence(s => s + corrected + " ");
+    currentWordRef.current = "";
+    setCurrentWord("");
+    setSuggestions(data.suggestions || []);
+  };
+
   const sendToBackend = async (imageSrc: string) => {
     const res = await fetch("http://127.0.0.1:8000/predict", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        image: imageSrc,
-      }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ image: imageSrc }),
     });
 
     const result = await res.json();
-
     const pred = result.prediction;
 
     if (!pred) {
@@ -124,16 +139,13 @@ export default function WebcamStream() {
     }
 
     const label = pred.label;
-    const conf = pred.confidence;
 
     setText(label);
-    setConfidence(conf);
+    setConfidence(pred.confidence);
     setHand(pred.hand);
     setType(pred.type);
 
-    // convert flat [x,y,...] → [[x,y],...]
     if (pred.landmarks) {
-      console.log("LANDMARKS FROM API:", pred.landmarks);
       const pairs = [];
       for (let i = 0; i < pred.landmarks.length; i += 2) {
         pairs.push([pred.landmarks[i], pred.landmarks[i + 1]]);
@@ -141,15 +153,26 @@ export default function WebcamStream() {
       setLandmarks(pairs);
     }
 
-    // TODO: Build sentence
     if (label === "space") {
-      setSentence(sentence => sentence + " ");
+      await correctAndFlush();
     } else if (label === "del") {
-      setSentence(sentence => sentence.slice(0, -1));
+      const updated = currentWordRef.current.slice(0, -1);
+      currentWordRef.current = updated;
+      setCurrentWord(updated);
     } else {
-      setSentence(sentence => sentence + label);
-    }
+      const updated = currentWordRef.current + label;
+      currentWordRef.current = updated;
+      setCurrentWord(updated);
 
+      // fetch live suggestions for the partial word
+      fetch("http://127.0.0.1:8000/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ prefix: updated }),
+      })
+        .then(r => r.json())
+        .then(data => setSuggestions(data.suggestions || []));
+    }
   };
 
   return (
@@ -176,9 +199,33 @@ export default function WebcamStream() {
         {text || "Detecting..."}
       </div>
 
+      {/* current word being signed */}
+      <div className="text-lg font-mono text-blue-600">
+        {currentWord ? `Signing: ${currentWord}` : ""}
+      </div>
+
+      {/* live word suggestions */}
+      {suggestions.length > 0 && (
+        <div className="flex gap-2 flex-wrap justify-center">
+          {suggestions.map(s => (
+            <button
+              key={s}
+              className="px-3 py-1 border rounded text-sm font-mono hover:bg-gray-100"
+              onClick={() => {
+                setSentence(prev => prev + s + " ");
+                currentWordRef.current = "";
+                setCurrentWord("");
+                setSuggestions([]);
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* sentence */}
       <div className="text-xl font-mono border p-4 w-200 text-center wrap-break-word overflow-y-auto whitespace-pre-wrap">
-        {/* TODO: Display the sentence */}
         {sentence || "No signs detected yet."}
       </div>
 

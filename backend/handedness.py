@@ -6,11 +6,13 @@ Letter: classify_letter_model.p -> Left hand
 For current testing: use dummy result, no webcam neededm simulate a right hand detection
 """
 import os
+import time
 import mediapipe as mp
 import cv2
 import threading
 import numpy
-from postprocess import DebounceBuffer, suggest_completions 
+from postprocess import suggest_completions
+from timer import GestureTimer
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Load from utils.py"""
@@ -170,37 +172,41 @@ hands = mp_hands.Hands(
     min_detection_confidence=0.5
 )
 
-debounce=DebounceBuffer() #From postprocess
+gesture_timer = GestureTimer(
+    letter_hold_ms=600,   # tune: how long to hold a sign before it commits
+    repeat_pause_ms=450,  # tune: gap needed between double letters
+    word_pause_ms=900,    # tune: no-hand gap before a space is inserted
+)
 
 def handle_frame(frame):
     with lock:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(rgb)
 
+        now_ms = int(time.monotonic() * 1000)
+
         if results is None:
+            gesture_timer.update(label=None, hand_present=False, timestamp_ms=now_ms)
             return {}
 
         predictions = router.predict(results)
 
         if not predictions:
-            #Test proprocess
-            # No hand detected → reset debounce (brief rest)
-            debounce.reset()
+            event = gesture_timer.update(label=None, hand_present=False, timestamp_ms=now_ms)
+            if event.commit_space:
+                return {"label": "space", "type": "space", "hand": None, "confidence": 1.0}
             return {}
-        
+
         pred = predictions[0]
         label = pred["label"]
 
-        # Run through debounce
-        clean_label = debounce.push(label)
+        event = gesture_timer.update(label=label, hand_present=True, timestamp_ms=now_ms)
 
-        if clean_label is None:
-            return {}  # suppressed duplicate
+        if event.commit_letter:
+            pred["label"] = event.commit_letter
+            return pred
 
-        pred["label"] = clean_label
-        
-        # return predictions[0]
-        return pred
+        return {}  # still within hold window, not committed yet
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """MAIN"""
