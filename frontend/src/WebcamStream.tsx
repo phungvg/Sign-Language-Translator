@@ -116,7 +116,7 @@ export default function WebcamStream() {
     setSentence(s => s + corrected + " ");
     currentWordRef.current = "";
     setCurrentWord("");
-    setSuggestions(data.suggestions || []);
+    setSuggestions([]);
   };
 
   const sendToBackend = async (imageSrc: string) => {
@@ -165,7 +165,7 @@ export default function WebcamStream() {
       setHand(result.hand);
     setType(result.type);
 
-    if (result.confidence < 0.65) {
+    if (result.confidence < 0.5) {
       return; // ignore low confidence predictions
     }
 
@@ -220,6 +220,9 @@ export default function WebcamStream() {
         {currentWord ? `Signing: ${currentWord}` : ""}
       </div>
 
+      <div className="text-sm text-gray-600">
+        (Click suggestion to auto-complete)
+      </div>
       {/* live word suggestions */}
       {suggestions.length > 0 && (
         <div className="flex gap-2 flex-wrap justify-center">
@@ -247,29 +250,6 @@ export default function WebcamStream() {
 
       <div className="text-sm text-gray-600">
         Confidence: {confidence} | Hand: {hand} | Type: {type}
-      </div>
-
-      {suggestions.length > 0 && (
-        <div className="flex gap-2 mt-3 flex-wrap">
-          {suggestions.map((word) => (
-            <button
-              key={word}
-              onClick={async () => {
-                // update UI immediately
-                setLabel("");
-                setSuggestions([]);
-                setSentence(prev => prev + word + " ");
-                currentWordRef.current = "";
-              }}
-              className="px-3 py-1 border hover:bg-gray-200 transition"
-            >
-              {word}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="text-sm text-gray-600">
-        (Click suggestion to auto-complete)
       </div>
       
     </div>
