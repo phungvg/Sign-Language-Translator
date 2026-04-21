@@ -4,9 +4,8 @@ from fastapi import FastAPI
 import base64
 import numpy as np
 import cv2
-
+import handedness
 from handedness import handle_frame
-
 app = FastAPI()
 
 app.add_middleware(
@@ -36,11 +35,9 @@ def predict(image: str = Form(...)):
 @app.post("/auto-complete")
 def auto_complete(word_selected: str = Form(...)):
     try:
-        global word
-        global word_list
-        word = word_selected
-        word_list.append(word) if word else None
-        return {"status": "ok"}
+        handedness.word = word_selected
+        handedness.word_list.append(handedness.word) if handedness.word else None
+        return {"text": "".join(handedness.word_list)}
     except Exception as e:
         print(e)
         return {"error": str(e)}

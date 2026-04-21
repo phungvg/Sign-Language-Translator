@@ -14,6 +14,8 @@ export default function WebcamStream() {
   const [hand, setHand] = useState<string>("");
   const [type, setType] = useState<string>("");
 
+  const [pause, setPause] = useState(false);
+
   // capture every 300ms
   useEffect(() => {
     const interval = setInterval(() => {
@@ -71,7 +73,7 @@ export default function WebcamStream() {
   }, [landmarks]);
 
   const captureAndSend = async () => {
-    if (!webcamRef.current) return;
+    if (!webcamRef.current || pause) return;
     const imageSrc = webcamRef.current.getScreenshot();
     if (!imageSrc) return;
 
@@ -100,7 +102,7 @@ export default function WebcamStream() {
   }
 
   const sendToBackend = async (imageSrc: string) => {
-    const res = await fetch("http://127.0.0.1:8000/predict", {
+    const ui_res = await fetch("http://127.0.0.1:8000/predict", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -110,7 +112,7 @@ export default function WebcamStream() {
       }),
     });
 
-    const result = await res.json();
+    const result = await ui_res.json();
 
     if (!result) {
       setLandmarks(null);
@@ -181,12 +183,12 @@ export default function WebcamStream() {
               key={word}
               onClick={async () => {
                 // update UI immediately
+                setPause(true);
                 setLabel("");
-                setText(prev => prev + word);
                 setSuggestions([]);
 
                 // notify backend
-                await fetch("http://127.0.0.1:8000/select_word", {
+                const auto_complete = await fetch("http://127.0.0.1:8000/auto-complete", {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
@@ -195,6 +197,13 @@ export default function WebcamStream() {
                     word_selected: word,
                   }),
                 });
+                const auto_complete_res = await auto_complete.json();
+                if (!auto_complete_res) {
+                  return;
+                }
+                setText(auto_complete_res.text);
+                console.log("Auto-complete response:", auto_complete_res.text);
+                setTimeout(() => setPause(false), 500); // resume
               }}
               className="px-3 py-1 border hover:bg-gray-200 transition"
             >
