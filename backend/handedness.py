@@ -6,10 +6,14 @@ Letter: classify_letter_model.p -> Left hand
 For current testing: use dummy result, no webcam neededm simulate a right hand detection
 """
 import os
+import time
 import mediapipe as mp
 import cv2
 import threading
 import numpy
+from postprocess import suggest_completions
+from timer import GestureTimer
+
 from postprocess import DebounceBuffer, suggest_completions 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -170,6 +174,12 @@ hands = mp_hands.Hands(
     min_detection_confidence=0.5
 )
 
+gesture_timer = GestureTimer(
+    letter_hold_ms=600,   # tune: how long to hold a sign before it commits
+    repeat_pause_ms=450,  # tune: gap needed between double letters
+    word_pause_ms=900,    # tune: no-hand gap before a space is inserted
+)
+
 debounce=DebounceBuffer() #From postprocess
 word_list = []  # list of words so far
 word = ""  # current word being built from letter predictions
@@ -180,81 +190,30 @@ def handle_frame(frame):
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(rgb)
 
-        if results.multi_hand_landmarks is None:
-            return None
-        
+        now_ms = int(time.monotonic() * 1000)
+
+        if results is None:
+            gesture_timer.update(label=None, hand_present=False, timestamp_ms=now_ms)
+            return {}
+
         predictions = router.predict(results)
 
         if not predictions:
-            # Test proprocess
-            # No hand detected -> reset debounce (brief rest)
-            debounce.reset()
-            return None
-        
+            event = gesture_timer.update(label=None, hand_present=False, timestamp_ms=now_ms)
+            if event.commit_space:
+                return {"label": "space", "type": "space", "hand": None, "confidence": 1.0}
+            return {}
+
         pred = predictions[0]
         label = pred["label"]
-        confidence = pred["confidence"]
 
-        # Low confidence -> don't update word, but still return prediction for UI feedback
-        if confidence < 0.65:
-            
-            return {
-                "landmarks": pred["landmarks"],
-                "label": label,
-                "type": pred["type"],
-                "hand": pred["hand"],
-                "confidence": confidence,
-                "text": "".join(word_list + ([word] if word else [])),
-                "suggestions": suggest_completions(word)
-            }
+        event = gesture_timer.update(label=label, hand_present=True, timestamp_ms=now_ms)
 
-        # Run through debounce
-        clean_label = debounce.push(label)
+        if event.commit_letter:
+            pred["label"] = event.commit_letter
+            return pred
 
-        # Ignore duplicate, just send prediction for UI feedback without updating word
-        if clean_label is None:
-            return {
-                "landmarks": pred["landmarks"],
-                "label": label,
-                "type": pred["type"],
-                "hand": pred["hand"],
-                "confidence": confidence,
-                "text": "".join(word_list + ([word] if word else [])),
-                "suggestions": suggest_completions(word)
-            }
-
-        pred["label"] = clean_label
-        if clean_label == "space":
-            word_list.append(word)
-            word_list.append(" ")  # add space after word
-            word = ""
-            return {
-                "landmarks": pred["landmarks"],
-                "label": str(pred["label"]),
-                "type": pred["type"],
-                "hand": pred["hand"],
-                "confidence": float(pred["confidence"]),
-                "text": "".join(word_list),
-                "suggestions": suggest_completions(word)
-            }
-        elif clean_label == "del":
-            word = word[:-1] if word else ""
-            if not word and word_list: # move back to previous word if current word is empty
-                word = word_list.pop() 
-            debounce.push(word[-1]) if word else debounce.reset()  # update debounce with new last character or reset
-            word.strip()  # remove trailing space if any
-        else:
-            word += clean_label
-
-        return {
-            "landmarks": pred["landmarks"],
-            "label": str(pred["label"]),
-            "type": pred["type"],
-            "hand": pred["hand"],
-            "confidence": float(pred["confidence"]),
-            "text": "".join(word_list + ([word] if word else [])),
-            "suggestions": suggest_completions(word)
-        }
+        return {}  # still within hold window, not committed yet
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """MAIN"""

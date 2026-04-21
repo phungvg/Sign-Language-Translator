@@ -6,15 +6,15 @@ export default function WebcamStream() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [label, setLabel] = useState("");
-  const [text, setText] = useState("");
-  const [landmarks, setLandmarks] = useState<number[][] | null>(null);
+  const [sentence, setSentence] = useState("");
+  const [currentWord, setCurrentWord] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [landmarks, setLandmarks] = useState<number[][] | null>(null);
 
   const [confidence, setConfidence] = useState<string>("");
   const [hand, setHand] = useState<string>("");
   const [type, setType] = useState<string>("");
-
-  const [pause, setPause] = useState(false);
+  const currentWordRef = useRef<string>("");
 
   // capture every 300ms
   useEffect(() => {
@@ -73,7 +73,7 @@ export default function WebcamStream() {
   }, [landmarks]);
 
   const captureAndSend = async () => {
-    if (!webcamRef.current || pause) return;
+    if (!webcamRef.current) return;
     const imageSrc = webcamRef.current.getScreenshot();
     if (!imageSrc) return;
 
@@ -101,20 +101,35 @@ export default function WebcamStream() {
     };
   }
 
+  const correctAndFlush = async () => {
+    const word = currentWordRef.current;
+    if (!word) return;
+
+    const res = await fetch("http://127.0.0.1:8000/correct", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ word }),
+    });
+    const data = await res.json();
+    const corrected: string = data.corrected || word;
+
+    setSentence(s => s + corrected + " ");
+    currentWordRef.current = "";
+    setCurrentWord("");
+    setSuggestions(data.suggestions || []);
+  };
+
   const sendToBackend = async (imageSrc: string) => {
     const ui_res = await fetch("http://127.0.0.1:8000/predict", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        image: imageSrc,
-      }),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ image: imageSrc }),
     });
 
     const result = await ui_res.json();
+    const pred = result.prediction;
 
-    if (!result) {
+    if (!pred) {
       setLandmarks(null);
       setLabel("");
       setHand("");
@@ -123,16 +138,14 @@ export default function WebcamStream() {
       return;
     }
 
-    setLabel(result.label);
-    setConfidence(result.confidence);
-    setText(result.text);
-    setSuggestions(result.suggestions ?? []);
-    setHand(result.hand);
-    setType(result.type);
+    const label = pred.label;
 
-    // convert flat [x,y,...] → [[x,y],...]
-    if (result.landmarks) {
-      console.log("LANDMARKS FROM API:", result.landmarks);
+    setLabel(label);
+    setConfidence(pred.confidence);
+    setHand(pred.hand);
+    setType(pred.type);
+
+    if (pred.landmarks) {
       const pairs = [];
       for (let i = 0; i < result.landmarks.length; i += 2) {
         pairs.push([result.landmarks[i], result.landmarks[i + 1]]);
@@ -140,6 +153,26 @@ export default function WebcamStream() {
       setLandmarks(pairs);
     }
 
+    if (label === "space") {
+      await correctAndFlush();
+    } else if (label === "del") {
+      const updated = currentWordRef.current.slice(0, -1);
+      currentWordRef.current = updated;
+      setCurrentWord(updated);
+    } else {
+      const updated = currentWordRef.current + label;
+      currentWordRef.current = updated;
+      setCurrentWord(updated);
+
+      // fetch live suggestions for the partial word
+      fetch("http://127.0.0.1:8000/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ prefix: updated }),
+      })
+        .then(r => r.json())
+        .then(data => setSuggestions(data.suggestions || []));
+    }
   };
 
   return (
@@ -166,10 +199,34 @@ export default function WebcamStream() {
         {label || "Detecting..."}
       </div>
 
+      {/* current word being signed */}
+      <div className="text-lg font-mono text-blue-600">
+        {currentWord ? `Signing: ${currentWord}` : ""}
+      </div>
+
+      {/* live word suggestions */}
+      {suggestions.length > 0 && (
+        <div className="flex gap-2 flex-wrap justify-center">
+          {suggestions.map(s => (
+            <button
+              key={s}
+              className="px-3 py-1 border rounded text-sm font-mono hover:bg-gray-100"
+              onClick={() => {
+                setSentence(prev => prev + s + " ");
+                currentWordRef.current = "";
+                setCurrentWord("");
+                setSuggestions([]);
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* sentence */}
       <div className="text-xl font-mono border p-4 w-200 text-center wrap-break-word overflow-y-auto whitespace-pre-wrap">
-        {/* TODO: Display the sentence */}
-        {text || "No signs detected yet."}
+        {sentence || "No signs detected yet."}
       </div>
 
       <div className="text-sm text-gray-600">
@@ -183,27 +240,10 @@ export default function WebcamStream() {
               key={word}
               onClick={async () => {
                 // update UI immediately
-                setPause(true);
                 setLabel("");
                 setSuggestions([]);
-
-                // notify backend
-                const auto_complete = await fetch("http://127.0.0.1:8000/auto-complete", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                  },
-                  body: new URLSearchParams({
-                    word_selected: word,
-                  }),
-                });
-                const auto_complete_res = await auto_complete.json();
-                if (!auto_complete_res) {
-                  return;
-                }
-                setText(auto_complete_res.text);
-                console.log("Auto-complete response:", auto_complete_res.text);
-                setTimeout(() => setPause(false), 500); // resume
+                setSentence(prev => prev + word + " ");
+                currentWordRef.current = "";
               }}
               className="px-3 py-1 border hover:bg-gray-200 transition"
             >

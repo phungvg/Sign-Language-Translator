@@ -51,10 +51,8 @@ backend/
 │
 ├── app.py          # live camera app entry point
 ├── utils.py         # landmark extraction, normalization, drawing helpers
-├── handedness.py    # routes left/right hand to correct model
+├── handedness.py    # main file **
 ├── postprocess.py   # debounce, autocorrect, word building
-├── hud.py           # HUD drawing on camera frame
-├── symbols.py       # symbol mode overlay
 ├── train.py         # training pipeline
 ├── test_model.py    # evaluate models on unseen images
 └── requirements.txt
@@ -65,9 +63,11 @@ backend/
 - [x] Classify 26 Alphabets (A–Z)
 - [x] Classify USA Numbers (0–9)
 - [x] Auto-route Left hand → numbers, Right hand → letters
-- [x] Handle both 2 hands simultaneously
+- [x] Handle both 2 hands, but each at a time
 - [x] Switch between alphabet and number automatically
 - [x] Handle del and space gestures
-- [ ] Handle lightening
-- [ ] Double letter
-- [ ] Auto check & convert to legit words
+- [x] Handle lightening
+- [x] Double letter
+- [x] Auto check & convert to legit words
+- [x] Suggest 5 words button
+      
