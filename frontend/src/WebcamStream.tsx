@@ -127,9 +127,8 @@ export default function WebcamStream() {
     });
 
     const result = await ui_res.json();
-    const pred = result.prediction;
 
-    if (!pred) {
+    if (!result) {
       setLandmarks(null);
       setLabel("");
       setHand("");
@@ -138,19 +137,36 @@ export default function WebcamStream() {
       return;
     }
 
-    const label = pred.label;
-
-    setLabel(label);
-    setConfidence(pred.confidence);
-    setHand(pred.hand);
-    setType(pred.type);
-
-    if (pred.landmarks) {
+    if (result.landmarks) {
       const pairs = [];
       for (let i = 0; i < result.landmarks.length; i += 2) {
         pairs.push([result.landmarks[i], result.landmarks[i + 1]]);
       }
       setLandmarks(pairs);
+    } else if (result.type === "space" && !result.hand) {
+      // special case for space gesture which may not have landmarks
+      setLandmarks(null);
+      setHand("")
+    }
+    else {
+      setLandmarks(null);
+      setLabel("");
+      return;
+    }
+
+    if (!result.label) {
+      return;
+    }
+
+    const label = result.label;
+    setLabel(label);
+    setConfidence(result.confidence);
+    if (result.hand)
+      setHand(result.hand);
+    setType(result.type);
+
+    if (result.confidence < 0.65) {
+      return; // ignore low confidence predictions
     }
 
     if (label === "space") {

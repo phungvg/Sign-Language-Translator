@@ -4,7 +4,6 @@ from fastapi import FastAPI
 import base64
 import numpy as np
 import cv2
-import handedness
 from handedness import handle_frame
 from postprocess import suggest_completions
 from spellchecker import SpellChecker
@@ -36,13 +35,11 @@ def predict(image: str = Form(...)):
             return {"prediction": None}
 
         return {
-            "prediction": {
-                "landmarks": result.get("landmarks"),
-                "label": str(result["label"]),
-                "type": result.get("type"),
-                "hand": result.get("hand"),
-                "confidence": float(result["confidence"]) if result.get("confidence") is not None else 1.0,
-            }
+            "landmarks": result.get("landmarks"),
+            "label": str(result["label"]),
+            "type": result.get("type"),
+            "hand": result.get("hand"),
+            "confidence": float(result["confidence"]) if result.get("confidence") is not None else 1.0,
         }
 
     except Exception as e:
