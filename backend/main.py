@@ -1,1 +1,0 @@
-"""Add time counts (long,short = pause) to handle double letters"""
