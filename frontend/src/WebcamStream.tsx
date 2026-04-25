@@ -16,6 +16,38 @@ export default function WebcamStream() {
   const [type, setType] = useState<string>("");
   const currentWordRef = useRef<string>("");
 
+  const refreshSuggestions = async (prefix: string) => {
+    if (!prefix) {
+      setSuggestions([]);
+      return;
+    }
+
+    const res = await fetch("http://127.0.0.1:8000/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ prefix }),
+    });
+    const data = await res.json();
+    setSuggestions(data.suggestions || []);
+  };
+
+  const removeLastCompletedWord = (value: string) => {
+    const trimmed = value.trimEnd();
+
+    if (!trimmed) {
+      return "";
+    }
+
+    const words = trimmed.split(/\s+/);
+    words.pop();
+
+    if (words.length === 0) {
+      return "";
+    }
+
+    return `${words.join(" ")} `;
+  };
+
   // capture every 300ms
   useEffect(() => {
     const interval = setInterval(() => {
@@ -156,22 +188,24 @@ export default function WebcamStream() {
     if (label === "space") {
       await correctAndFlush();
     } else if (label === "del") {
-      const updated = currentWordRef.current.slice(0, -1);
-      currentWordRef.current = updated;
-      setCurrentWord(updated);
+      const current = currentWordRef.current;
+
+      if (current) {
+        const updated = current.slice(0, -1);
+        currentWordRef.current = updated;
+        setCurrentWord(updated);
+        await refreshSuggestions(updated);
+      } else {
+        setSentence(prev => removeLastCompletedWord(prev));
+        setSuggestions([]);
+      }
     } else {
       const updated = currentWordRef.current + label;
       currentWordRef.current = updated;
       setCurrentWord(updated);
 
       // fetch live suggestions for the partial word
-      fetch("http://127.0.0.1:8000/suggest", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ prefix: updated }),
-      })
-        .then(r => r.json())
-        .then(data => setSuggestions(data.suggestions || []));
+      await refreshSuggestions(updated);
     }
   };
 
