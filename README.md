@@ -49,6 +49,7 @@ backend/
 │       ├── letter_dataset.pickle    # extracted letter landmarks
 │       └── digit_dataset.pickle     # extracted digit landmarks
 │
+├── app.py          # live camera app entry point
 ├── utils.py         # landmark extraction, normalization, drawing helpers
 ├── handedness.py    # main file **
 ├── postprocess.py   # debounce, autocorrect, word building

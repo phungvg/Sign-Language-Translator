@@ -4,7 +4,6 @@ from fastapi import FastAPI
 import base64
 import numpy as np
 import cv2
-
 from handedness import handle_frame
 from postprocess import suggest_completions
 from spellchecker import SpellChecker
@@ -29,19 +28,18 @@ def predict(image: str = Form(...)):
         nparr = np.frombuffer(image_bytes, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
+        
         result = handle_frame(frame)
 
         if not result:
             return {"prediction": None}
 
         return {
-            "prediction": {
-                "landmarks": result.get("landmarks"),
-                "label": str(result["label"]),
-                "type": result.get("type"),
-                "hand": result.get("hand"),
-                "confidence": float(result["confidence"]) if result.get("confidence") is not None else 1.0,
-            }
+            "landmarks": result.get("landmarks"),
+            "label": str(result["label"]),
+            "type": result.get("type"),
+            "hand": result.get("hand"),
+            "confidence": float(result["confidence"]) if result.get("confidence") is not None else 1.0,
         }
 
     except Exception as e:

@@ -5,7 +5,7 @@ export default function WebcamStream() {
   const webcamRef = useRef<Webcam>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [text, setText] = useState("");
+  const [label, setLabel] = useState("");
   const [sentence, setSentence] = useState("");
   const [currentWord, setCurrentWord] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -148,41 +148,57 @@ export default function WebcamStream() {
     setSentence(s => s + corrected + " ");
     currentWordRef.current = "";
     setCurrentWord("");
-    setSuggestions(data.suggestions || []);
+    setSuggestions([]);
   };
 
   const sendToBackend = async (imageSrc: string) => {
-    const res = await fetch("http://127.0.0.1:8000/predict", {
+    const ui_res = await fetch("http://127.0.0.1:8000/predict", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ image: imageSrc }),
     });
 
-    const result = await res.json();
-    const pred = result.prediction;
+    const result = await ui_res.json();
 
-    if (!pred) {
+    if (!result) {
       setLandmarks(null);
-      setText("");
-      setConfidence("");
+      setLabel("");
       setHand("");
       setType("");
+      setConfidence("");
       return;
     }
 
-    const label = pred.label;
-
-    setText(label);
-    setConfidence(pred.confidence);
-    setHand(pred.hand);
-    setType(pred.type);
-
-    if (pred.landmarks) {
+    if (result.landmarks) {
       const pairs = [];
-      for (let i = 0; i < pred.landmarks.length; i += 2) {
-        pairs.push([pred.landmarks[i], pred.landmarks[i + 1]]);
+      for (let i = 0; i < result.landmarks.length; i += 2) {
+        pairs.push([result.landmarks[i], result.landmarks[i + 1]]);
       }
       setLandmarks(pairs);
+    } else if (result.type === "space" && !result.hand) {
+      // special case for space gesture which may not have landmarks
+      setLandmarks(null);
+      setHand("")
+    }
+    else {
+      setLandmarks(null);
+      setLabel("");
+      return;
+    }
+
+    if (!result.label) {
+      return;
+    }
+
+    const label = result.label;
+    setLabel(label);
+    setConfidence(result.confidence);
+    if (result.hand)
+      setHand(result.hand);
+    setType(result.type);
+
+    if (result.confidence < 0.5) {
+      return; // ignore low confidence predictions
     }
 
     if (label === "space") {
@@ -230,7 +246,7 @@ export default function WebcamStream() {
 
       {/* current letter prediction */}
       <div className="text-xl font-mono border p-4 text-center">
-        {text || "Detecting..."}
+        {label || "Detecting..."}
       </div>
 
       {/* current word being signed */}
@@ -238,6 +254,9 @@ export default function WebcamStream() {
         {currentWord ? `Signing: ${currentWord}` : ""}
       </div>
 
+      <div className="text-sm text-gray-600">
+        (Click suggestion to auto-complete)
+      </div>
       {/* live word suggestions */}
       {suggestions.length > 0 && (
         <div className="flex gap-2 flex-wrap justify-center">
@@ -266,6 +285,8 @@ export default function WebcamStream() {
       <div className="text-sm text-gray-600">
         Confidence: {confidence} | Hand: {hand} | Type: {type}
       </div>
+      
     </div>
+    
   );
 }

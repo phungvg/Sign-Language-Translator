@@ -5,18 +5,15 @@ Letter: classify_letter_model.p -> Left hand
 
 For current testing: use dummy result, no webcam neededm simulate a right hand detection
 """
-import os
 import time
 import mediapipe as mp
 import cv2
 import threading
-import numpy
-from postprocess import suggest_completions
-from timer import GestureTimer
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """Load from utils.py"""
 #--------------------------------------------------------------------------------------------------------------------------------------------
+from timer import GestureTimer
 from utils import (
     load_model,                  # load .p files
     get_handedness,              # left or right?
@@ -187,7 +184,7 @@ def handle_frame(frame):
 
         if results is None:
             gesture_timer.update(label=None, hand_present=False, timestamp_ms=now_ms)
-            return {}
+            return None
 
         predictions = router.predict(results)
 
@@ -195,7 +192,7 @@ def handle_frame(frame):
             event = gesture_timer.update(label=None, hand_present=False, timestamp_ms=now_ms)
             if event.commit_space:
                 return {"label": "space", "type": "space", "hand": None, "confidence": 1.0}
-            return {}
+            return None
 
         pred = predictions[0]
         label = pred["label"]
@@ -206,7 +203,7 @@ def handle_frame(frame):
             pred["label"] = event.commit_letter
             return pred
 
-        return {}  # still within hold window, not committed yet
+        return None  # still within hold window, not committed yet
 
 #--------------------------------------------------------------------------------------------------------------------------------------------
 """MAIN"""
