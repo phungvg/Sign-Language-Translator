@@ -197,9 +197,10 @@ export default function WebcamStream() {
       setHand(result.hand);
     setType(result.type);
 
-    if (result.confidence < 0.5) {
-      return; // ignore low confidence predictions
-    }
+    // TODO: uncommend this when public demo is ready - for now we want to show all predictions even low confidence ones
+    // if (result.confidence < 0.5) {
+    //   return; // ignore low confidence predictions
+    // }
 
     if (label === "space") {
       await correctAndFlush();
